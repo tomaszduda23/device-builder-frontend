@@ -204,7 +204,7 @@ export async function attachBleNusLogs(
       {
         ...dialogLineHooks(dialog),
         onDisconnect: () =>
-          dialog.setSerialOpenFailed(localize("dashboard.logs_ble_nus_disconnected")),
+          dialog.triggerBleReconnect(localize("dashboard.logs_ble_nus_disconnected")),
       },
       { attempts: BLE_CONNECT_ATTEMPTS, cancelled }
     );

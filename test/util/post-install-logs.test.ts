@@ -423,7 +423,11 @@ describe("picoResetHook", () => {
 
 describe("attachBleNusLogs", () => {
   const device = {} as BluetoothDevice;
-  const bleDialog = () => ({ ...stubDialog(), setBleStream: vi.fn() });
+  const bleDialog = () => ({
+    ...stubDialog(),
+    setBleStream: vi.fn(),
+    triggerBleReconnect: vi.fn(),
+  });
 
   it("registers the stream once notifications flow", async () => {
     const dialog = bleDialog();
@@ -465,16 +469,17 @@ describe("attachBleNusLogs", () => {
     );
   });
 
-  it("ends the session quietly on a remote disconnect, leaving Start to reconnect", async () => {
+  it("triggers auto-reconnect on a remote disconnect", async () => {
     const dialog = bleDialog();
     bleStream.streamBleNus.mockImplementation(async (_d, hooks) => {
       hooks.onDisconnect?.();
       return async () => {};
     });
     await attachBleNusLogs(dialog as never, defaultLocalize, device, () => false);
-    expect(dialog.setSerialOpenFailed).toHaveBeenCalledWith(
+    expect(dialog.triggerBleReconnect).toHaveBeenCalledWith(
       defaultLocalize("dashboard.logs_ble_nus_disconnected")
     );
+    expect(dialog.setSerialOpenFailed).not.toHaveBeenCalled();
     expect(toastError).not.toHaveBeenCalled();
   });
 });
