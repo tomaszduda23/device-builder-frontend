@@ -112,6 +112,7 @@ export function cardState(host: ESPHomeFirmwareInstallDialog): ProcessTerminalSt
     case "downloading":
     case "nrf-reset":
     case "nrf-wait":
+    case "smp-ready":
       return "running";
     default:
       // Exhaustive: adding an InstallStep without mapping it here is a
@@ -162,6 +163,7 @@ export function cardStatusDetail(host: ESPHomeFirmwareInstallDialog): string {
   if (host._step === "download-ready") return downloadReadyDetail(host);
   if (host._step === "nrf-reset") return host._localize("firmware.nrf_step1_desc");
   if (host._step === "nrf-wait") return host._localize("firmware.nrf_step2_desc");
+  if (host._step === "smp-ready") return host._localize("firmware.smp_ready_desc");
   if (host._step === "error") return host._errorMessage;
   // Hidden tabs throttle timers, which can stall the Web Serial write and fail
   // the flash; there's no API to opt out, so warn the user to stay on the page.
@@ -338,6 +340,18 @@ export function renderFooter(host: ESPHomeFirmwareInstallDialog): TemplateResult
       </div>
     `;
   }
+  if (host._step === "smp-ready") {
+    return html`
+      <div class="footer">
+        <button class="btn btn--ghost" @click=${host._close}>
+          ${host._localize("command.close")}
+        </button>
+        <button class="btn btn--primary" @click=${host._nrfSmpDoFlash}>
+          ${host._localize("firmware.smp_connect_action")}
+        </button>
+      </div>
+    `;
+  }
   const isRunning =
     host._step !== "done" && host._step !== "error" && host._step !== "download-ready";
   if (isRunning) {
@@ -410,7 +424,8 @@ export function renderFooter(host: ESPHomeFirmwareInstallDialog): TemplateResult
     host._step === "error" &&
     (host._installer === "web-serial" ||
       host._installer === "web-flash" ||
-      host._installer === "nrf-dfu") &&
+      host._installer === "nrf-dfu" ||
+      host._installer === "nrf-smp-ble") &&
     host._failureKind === null;
   if (canRetry) {
     return html`

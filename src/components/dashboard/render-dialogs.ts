@@ -266,6 +266,7 @@ export function renderDialogs(host: ESPHomePageDashboard): TemplateResult {
       }
       .canFlashBootloader=${canFlashBootloader(host._installMethodDevice)}
       .neverFlashed=${isNeverFlashed(host._installMethodDevice)}
+      .deviceIntegrations=${host._installMethodDevice?.loaded_integrations ?? []}
       .mode=${host._installMethodMode}
       @close=${() => {
         host._installMethodOpen = false;

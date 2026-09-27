@@ -48,5 +48,8 @@ export function applyInstallMethod(
     case "nrf-dfu":
       h.firmwareDialog?.installNrfDfu(h.device);
       break;
+    case "nrf-smp-ble":
+      h.firmwareDialog?.installNrfSmpBle(h.device);
+      break;
   }
 }

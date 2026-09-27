@@ -128,6 +128,21 @@ export function renderNrfDfuOption(ctx: MethodRowContext): TemplateResult {
 }
 
 /**
+ * nRF52 update over Bluetooth (MCUmgr / SMP) — compile here, then send the
+ * MCUboot image to the running device from this browser. Only shown when the
+ * device's build has the ``zephyr_mcumgr`` OTA with a BLE server and the
+ * browser has Web Bluetooth.
+ */
+export function renderNrfSmpBleOption(ctx: MethodRowContext): TemplateResult {
+  return renderMethodRow({
+    icon: "bluetooth",
+    title: ctx.localize("dashboard.install_method_nrf_smp_ble"),
+    desc: ctx.localize("dashboard.install_method_nrf_smp_ble_desc"),
+    onClick: () => ctx.onSelect("nrf-smp-ble"),
+  });
+}
+
+/**
  * Manual binary download — always offered in install mode. Compiles
  * here, hands the user the resulting binary, and leaves flashing to
  * whatever tool they prefer (esptool.py, picotool, copy-to-MSC for

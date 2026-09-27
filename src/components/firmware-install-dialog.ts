@@ -37,6 +37,7 @@ import { LONG_TOAST_DURATION_MS, notifyInfo } from "../util/notify.js";
 import type { DfuPackage } from "../util/nrf-dfu.js";
 import { registerMdiIcons } from "../util/register-icons.js";
 import { RunTimerController } from "../util/run-timer-controller.js";
+import type { McubootImage } from "../util/smp/mcuboot-image.js";
 import type { DetectedChip } from "../util/web-serial.js";
 import {
   downloadSelectedBinary,
@@ -52,6 +53,10 @@ import {
   nrfDoReset,
   startNrfDfuInstall,
 } from "./firmware-install-dialog/nrf-dfu-install.js";
+import {
+  nrfSmpDoFlash,
+  startNrfSmpInstall,
+} from "./firmware-install-dialog/nrf-smp-install.js";
 import {
   cardState,
   cardStatusDetail,
@@ -97,9 +102,11 @@ export type InstallStep =
   | "download-ready"
   | "nrf-reset"
   | "nrf-wait"
+  | "smp-ready"
   | "error";
 
-export type Installer = "web-serial" | "binary-download" | "web-flash" | "nrf-dfu" | null;
+export type Installer =
+  "web-serial" | "binary-download" | "web-flash" | "nrf-dfu" | "nrf-smp-ble" | null;
 
 export type InstallFailureKind =
   "compile" | "validate" | "chip-mismatch" | "unsupported-browser" | null;
@@ -219,6 +226,10 @@ export class ESPHomeFirmwareInstallDialog extends LitElement {
   // flash (nrf-reset → nrf-wait). Cleared on _init.
   _nrfPkg: DfuPackage | null = null;
 
+  // Parsed MCUboot image held between the compile step and the Bluetooth
+  // update (smp-ready → Connect). Cleared on _init.
+  _smpImage: McubootImage | null = null;
+
   static styles = [
     espHomeStyles,
     firmwareInstallDialogStyles,
@@ -278,6 +289,19 @@ export class ESPHomeFirmwareInstallDialog extends LitElement {
   // Step 2 of nRF DFU — called from footer button (user gesture for requestPort()).
   _nrfDoFlash = () => void nrfDoFlash(this);
 
+  // Compile, download the MCUboot image, then update the nRF52 over
+  // Bluetooth (MCUmgr / SMP) once the user picks it in the chooser.
+  installNrfSmpBle(device: ConfiguredDevice) {
+    this._init(device);
+    this._installer = "nrf-smp-ble";
+    this._step = "queued";
+    this._statusMessage = this._localize("firmware.status_queued");
+    void startNrfSmpInstall(this);
+  }
+
+  // Called from the footer's Connect button (user gesture for requestDevice()).
+  _nrfSmpDoFlash = () => void nrfSmpDoFlash(this);
+
   // Three-dot "Download" entry; compiles only when nothing is built.
   downloadArtifacts(device: ConfiguredDevice) {
     this._init(device);
@@ -332,6 +356,7 @@ export class ESPHomeFirmwareInstallDialog extends LitElement {
     // _detachStream already cleared _jobId / _streamId / _compileReject.
     this._detected = null;
     this._nrfPkg = null;
+    this._smpImage = null;
   }
 
   // Tear down active follow_job: client-side (drop local handler) and
@@ -483,6 +508,7 @@ export class ESPHomeFirmwareInstallDialog extends LitElement {
     }
     if (this._installer === "web-flash") this.installUsbFlash(device);
     else if (this._installer === "nrf-dfu") this.installNrfDfu(device);
+    else if (this._installer === "nrf-smp-ble") this.installNrfSmpBle(device);
     else this.installWebSerial(device);
   };
 

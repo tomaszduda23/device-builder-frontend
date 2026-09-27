@@ -57,6 +57,10 @@ export class DeviceInstallController implements ReactiveController {
     return this._host.device?.ip || this._host.device?.address || "";
   }
 
+  get deviceIntegrations(): readonly string[] {
+    return this._host.device?.loaded_integrations ?? [];
+  }
+
   get canFlashBootloader(): boolean {
     return canFlashBootloader(this._host.device);
   }

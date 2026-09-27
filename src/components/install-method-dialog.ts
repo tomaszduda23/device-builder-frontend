@@ -1,6 +1,7 @@
 import { consume } from "@lit/context";
 import {
   mdiArrowLeft,
+  mdiBluetooth,
   mdiChevronDown,
   mdiChevronRight,
   mdiChevronUp,
@@ -31,7 +32,7 @@ import { espHomeStyles } from "../styles/shared.js";
 import { type DeploymentEnvironment, detectEnvironment } from "../util/environment.js";
 import { isEsptoolPlatform } from "../util/esptool-platform.js";
 import { fireEvent } from "../util/fire-event.js";
-import { isNrfPlatform } from "../util/nrf-platform.js";
+import { isNrfPlatform, smpOffered } from "../util/nrf-platform.js";
 import { registerMdiIcons } from "../util/register-icons.js";
 import { SerialPortsPollController } from "../util/serial-ports-poll-controller.js";
 import {
@@ -46,6 +47,7 @@ import {
   renderManualDownloadOption,
   renderMethodRow,
   renderNrfDfuOption,
+  renderNrfSmpBleOption,
   renderOtaOption,
   renderServerSerialOption,
 } from "./install-method-dialog-rows.js";
@@ -72,6 +74,7 @@ registerMdiIcons({
   download: mdiDownload,
   "ip-network-outline": mdiIpNetworkOutline,
   chip: mdiChip,
+  bluetooth: mdiBluetooth,
 });
 
 type DialogView = "method" | "port-select";
@@ -122,6 +125,14 @@ export class ESPHomeInstallMethodDialog extends LitElement {
    */
   @property({ type: Boolean, attribute: "never-flashed" })
   neverFlashed = false;
+
+  /**
+   * The device's ``loaded_integrations`` from its last compile. nRF52's
+   * Bluetooth update needs a build with ``zephyr_mcumgr`` and
+   * ``zephyr_ble_server``.
+   */
+  @property({ attribute: false })
+  deviceIntegrations: readonly string[] = [];
 
   @state() private _view: DialogView = "method";
 
@@ -240,12 +251,16 @@ export class ESPHomeInstallMethodDialog extends LitElement {
     const showLogsWebRow = isLogs && isEsptool && availability === "insecure-context";
     // nRF52 browser DFU is install-only and requires in-app Web Serial.
     const showNrfRow = !isLogs && isNrf && hasWebSerial;
+    // nRF52 Bluetooth update: install-only, needs Web Bluetooth and a build
+    // with the MCUmgr OTA over BLE.
+    const showNrfSmpRow = !isLogs && isNrf && smpOffered(this.deviceIntegrations);
 
     const ctx = this._rowContext();
     const otaRow = renderOtaOption(ctx);
     const usbRow = showUsbRow ? this._renderUsbOption(availability) : nothing;
     const logsWebRow = showLogsWebRow ? this._renderLogsWebOption() : nothing;
     const nrfRow = showNrfRow ? renderNrfDfuOption(ctx) : nothing;
+    const nrfSmpRow = showNrfSmpRow ? renderNrfSmpBleOption(ctx) : nothing;
     const serverRow = showServerSerialRow
       ? renderServerSerialOption(this._localize, env, () => this._onServerSerial())
       : nothing;
@@ -256,8 +271,8 @@ export class ESPHomeInstallMethodDialog extends LitElement {
     // mode, so it's inert (``nothing``) in the usbFirst (install) ordering.
     const usbFirst = !isLogs && this.neverFlashed;
     const rows = usbFirst
-      ? [usbRow, nrfRow, logsWebRow, serverRow, otaRow]
-      : [otaRow, usbRow, nrfRow, logsWebRow, serverRow];
+      ? [usbRow, nrfRow, nrfSmpRow, logsWebRow, serverRow, otaRow]
+      : [otaRow, usbRow, nrfRow, nrfSmpRow, logsWebRow, serverRow];
 
     return html`
       ${renderInstallNotice(ctx)}
