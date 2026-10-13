@@ -551,6 +551,7 @@
     "browser_flash_connect_failed": "Could not connect to the device",
     "nrf_flash_failed": "DFU flash failed",
     "nrf_manual_bootloader_hint": "{error}. Double-press the board's reset button to enter the bootloader by hand, then retry and pick the new port.",
+    "nrf_package_rejected": "The board's bootloader rejected this firmware and restarted. The package was built for SoftDevice {softdevices}, which does not match this board's bootloader or SoftDevice. Choose the bootloader that matches the board in the device's nrf52 configuration, or copy the build's UF2 file onto the board's drive instead.",
     "nrf_reconnecting": "Device disconnected. Waiting for it to reconnect, then retrying…",
     "nrf_reset_needs_newer_esphome": "This device ignored the reset; update it to a newer ESPHome to reset it from the logs.",
     "rp2_bootsel_title": "Ready to flash over USB",

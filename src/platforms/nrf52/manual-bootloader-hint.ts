@@ -2,14 +2,21 @@ import type { LocalizeFunc } from "../../common/localize.js";
 import { getErrorMessage } from "../../util/error-message.js";
 import { BootloaderTouchError } from "../../util/serial-bootloader-touch.js";
 import { SerialDeviceLostError } from "../../util/serial-open-error.js";
+import { DfuInitRejectedError } from "./dfu-init-rejected.js";
 
 /**
  * ``err``'s message joined with the nRF52 way out when the 1200-baud touch
  * or the DFU handshake fails: enter the bootloader by hand. An abort is the
  * dialog's own teardown and stays bare, and a device that went away has a
- * line of its own.
+ * line of its own, as does a package the bootloader rejected: the board was
+ * already in its bootloader, and the package is what has to change.
  */
 export function withManualBootloaderHint(err: unknown, localize: LocalizeFunc): string {
+  if (err instanceof DfuInitRejectedError) {
+    return localize("firmware.nrf_package_rejected", {
+      softdevices: err.softDevices.join(", ") || "?",
+    });
+  }
   // A board that was unplugged is not one to put into its bootloader.
   if (err instanceof SerialDeviceLostError) return localize("serial.device_lost");
   const message = getErrorMessage(err);

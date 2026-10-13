@@ -10,6 +10,7 @@ import {
 } from "../../util/serial-reacquire.js";
 import { SerialStreamSession } from "../../util/serial-stream-session.js";
 import { sleep } from "../../util/sleep.js";
+import { DfuInitRejectedError } from "./dfu-init-rejected.js";
 
 export interface DfuFirmwarePart {
   type: "application" | "bootloader" | "softdevice" | "softdevice+bootloader";
@@ -104,6 +105,25 @@ export function parseDfuPackage(zipBytes: Uint8Array): DfuPackage {
   if (parts.length === 0) throw new Error("No firmware found in DFU package");
 
   return { parts };
+}
+
+/**
+ * The SoftDevice IDs a legacy init packet accepts: device type (2), device
+ * revision (2), app version (4), SoftDevice count (2), then the IDs.
+ */
+export function initPacketSoftDevices(dat: Uint8Array): string[] {
+  if (dat.length < 10) return [];
+  const view = new DataView(dat.buffer, dat.byteOffset, dat.byteLength);
+  const count = Math.min(view.getUint16(8, true), Math.floor((dat.length - 10) / 2));
+  return Array.from(
+    { length: count },
+    (_, i) =>
+      `0x${view
+        .getUint16(10 + i * 2, true)
+        .toString(16)
+        .toUpperCase()
+        .padStart(4, "0")}`
+  );
 }
 
 // ── SLIP framing ─────────────────────────────────────────────────────────────
@@ -297,13 +317,28 @@ class DfuSession extends SerialStreamSession {
     await this.sendPacket(frame);
   }
 
-  async sendFirmware(bin: Uint8Array, onPercent: (p: number) => void): Promise<void> {
+  async sendFirmware(
+    bin: Uint8Array,
+    dat: Uint8Array,
+    onPercent: (p: number) => void
+  ): Promise<void> {
     const chunkCount = Math.ceil(bin.length / DFU_PACKET_MAX_SIZE);
     this.log(`Transferring in ${chunkCount} packets`);
     const tenth = tenthLogger(this.log, "Transferring");
     for (let i = 0; i < chunkCount; i++) {
       const chunk = bin.subarray(i * DFU_PACKET_MAX_SIZE, (i + 1) * DFU_PACKET_MAX_SIZE);
-      await this.sendPacket(concat(int32LE(DFU_DATA_PACKET), chunk));
+      try {
+        await this.sendPacket(concat(int32LE(DFU_DATA_PACKET), chunk));
+      } catch (err) {
+        // The bootloader validates the init packet only after ACKing it and
+        // resets on a mismatch, so the first data packet is what fails.
+        if (i > 0 || this.signal?.aborted) throw err;
+        const reason = err instanceof Error ? err.message : String(err);
+        this.log(
+          `The bootloader reset after the init packet; it rejected the package (${reason})`
+        );
+        throw new DfuInitRejectedError(initPacketSoftDevices(dat), reason);
+      }
       const percent = Math.floor(((i + 1) / chunkCount) * 100);
       onPercent(percent);
       tenth(percent);
@@ -368,7 +403,7 @@ export async function flashDfuPackage(
 
       await session.sendStartDfu(part.mode, sdSize, blSize, appSize);
       await session.sendInitPacket(part.dat);
-      await session.sendFirmware(part.bin, (pct) => {
+      await session.sendFirmware(part.bin, part.dat, (pct) => {
         onProgress(base + (pct * range) / 100);
       });
     }

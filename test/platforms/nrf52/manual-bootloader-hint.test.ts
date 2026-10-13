@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { argsLocalize } from "../../_dom.js";
+import { DfuInitRejectedError } from "../../../src/platforms/nrf52/dfu-init-rejected.js";
 import { withManualBootloaderHint } from "../../../src/platforms/nrf52/manual-bootloader-hint.js";
 import { SerialDeviceLostError } from "../../../src/util/serial-open-error.js";
 
@@ -25,6 +26,15 @@ describe("withManualBootloaderHint", () => {
     expect(withManualBootloaderHint(new SerialDeviceLostError(), argsLocalize)).toBe(
       "serial.device_lost"
     );
+  });
+
+  it("blames the package, not the bootloader entry, when the init packet is rejected", () => {
+    expect(
+      withManualBootloaderHint(
+        new DfuInitRejectedError(["0x00CA"], "An unknown system error has occurred."),
+        argsLocalize
+      )
+    ).toBe("firmware.nrf_package_rejected | 0x00CA");
   });
 
   it("keeps a teardown abort bare", () => {

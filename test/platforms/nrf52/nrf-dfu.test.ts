@@ -2,6 +2,7 @@ import { strToU8, zipSync } from "fflate";
 import { describe, expect, it, vi } from "vitest";
 import { driveFakeTimers } from "../../_fake-timers.js";
 import { disconnectEvents } from "../../_web-serial.js";
+import { DfuInitRejectedError } from "../../../src/platforms/nrf52/dfu-init-rejected.js";
 import { SerialDeviceLostError } from "../../../src/util/serial-open-error.js";
 import { makeWebSerialPort } from "../../web/_make-web-serial-port.js";
 
@@ -10,6 +11,7 @@ import {
   crc16Nordic,
   flashDfuPackage,
   flashDfuPackageWithReconnect,
+  initPacketSoftDevices,
   parseDfuPackage,
   slipDecode,
   slipEncode,
@@ -267,6 +269,132 @@ function ackingPort() {
   });
   return { port, written };
 }
+
+describe("initPacketSoftDevices", () => {
+  it("reads the SoftDevice IDs of a legacy init packet", () => {
+    // dev type 0x0052, rev 0xFFFF, app 0xFFFFFFFF, 2 IDs: 0x00CA, 0x0123, CRC
+    const dat = bytes(
+      0x52,
+      0,
+      0xff,
+      0xff,
+      0xff,
+      0xff,
+      0xff,
+      0xff,
+      2,
+      0,
+      0xca,
+      0,
+      0x23,
+      1,
+      0xaa,
+      0xbb
+    );
+    expect(initPacketSoftDevices(dat)).toEqual(["0x00CA", "0x0123"]);
+  });
+
+  it("returns nothing for a truncated packet", () => {
+    expect(initPacketSoftDevices(bytes(0x52, 0, 1))).toEqual([]);
+    // A count larger than the bytes present is clamped.
+    expect(
+      initPacketSoftDevices(bytes(0x52, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0xca, 0))
+    ).toEqual(["0x00CA"]);
+  });
+});
+
+/**
+ * A bootloader that ACKs the start and init packets, then resets when it
+ * validates the init packet: the port drops before the first data packet's ACK.
+ */
+function rejectingPort() {
+  let rx!: ReadableStreamDefaultController<Uint8Array>;
+  let writes = 0;
+  const port = makeWebSerialPort({
+    close: vi.fn(async () => {}),
+    ...disconnectEvents(),
+    readable: new ReadableStream<Uint8Array>({ start: (c) => (rx = c) }),
+    writable: new WritableStream<Uint8Array>({
+      write: () => {
+        writes++;
+        setTimeout(() => {
+          if (writes <= 2) rx.enqueue(bytes(0x00, 0x00, 0xc0));
+          else
+            rx.error(
+              new DOMException("An unknown system error has occurred.", "UnknownError")
+            );
+        }, 1);
+      },
+    }),
+  });
+  return port;
+}
+
+describe("flashDfuPackage init packet rejection", () => {
+  const dat = bytes(
+    0x52,
+    0,
+    0xff,
+    0xff,
+    0xff,
+    0xff,
+    0xff,
+    0xff,
+    1,
+    0,
+    0xca,
+    0,
+    0xaa,
+    0xbb
+  );
+  const pkg = {
+    parts: [{ type: "application" as const, mode: 4, bin: new Uint8Array(1024), dat }],
+  };
+
+  it("names the package's SoftDevice when the first data packet fails", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const port = rejectingPort();
+    const log: string[] = [];
+    let caught: unknown;
+    try {
+      await driveFakeTimers(
+        flashDfuPackage(port, pkg, {
+          onProgress: () => {},
+          onLog: (l) => log.push(l),
+        }).catch((err: unknown) => {
+          caught = err;
+        })
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(caught).toBeInstanceOf(DfuInitRejectedError);
+    expect((caught as DfuInitRejectedError).softDevices).toEqual(["0x00CA"]);
+    expect(log[log.length - 1]).toMatch(/^The bootloader reset after the init packet/);
+    expect(port.close).toHaveBeenCalled();
+  });
+
+  it("is not retried as a dropped device", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const port = rejectingPort();
+    const onReconnecting = vi.fn();
+    let caught: unknown;
+    try {
+      await driveFakeTimers(
+        flashDfuPackageWithReconnect(port, pkg, {
+          onProgress: () => {},
+          onReconnecting,
+        }).catch((err: unknown) => {
+          caught = err;
+        })
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(caught).toBeInstanceOf(DfuInitRejectedError);
+    expect(onReconnecting).not.toHaveBeenCalled();
+  });
+});
 
 describe("flashDfuPackage log lines", () => {
   it("names every step: start and erase, init, transfer by tens, stop, reboot", async () => {
