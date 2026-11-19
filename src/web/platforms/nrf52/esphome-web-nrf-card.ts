@@ -1,15 +1,17 @@
 import { consume } from "@lit/context";
-import { mdiBluetooth, mdiTextBoxOutline, mdiUpdate, mdiUpload } from "@mdi/js";
-import { html, LitElement } from "lit";
+import { mdiBluetooth, mdiTextBoxOutline, mdiUpdate, mdiUpload, mdiUsb } from "@mdi/js";
+import { html, LitElement, nothing } from "lit";
 import { customElement, state } from "lit/decorators.js";
 
 import type { LocalizeFunc } from "../../../common/localize.js";
 import { localizeContext } from "../../../context/index.js";
 import { actionBtnStyles } from "../../../styles/action-buttons.js";
 import { espHomeStyles } from "../../../styles/shared.js";
+import "./esphome-web-install-nrf-debugger-dialog.js";
 import "./esphome-web-install-nrf-dialog.js";
 import "./esphome-web-update-nrf-dialog.js";
 import { registerMdiIcons } from "../../../util/register-icons.js";
+import { isWebUsbSupported } from "../../../util/web-usb.js";
 import { cardActionsRowStyles } from "../../dashboard/card-actions-row.js";
 import "../../logs/esphome-web-logs-dialog.js";
 import { pickPortForLogs } from "../../util/pick-port-for-logs.js";
@@ -24,6 +26,7 @@ registerMdiIcons({
   "text-box-outline": mdiTextBoxOutline,
   bluetooth: mdiBluetooth,
   update: mdiUpdate,
+  usb: mdiUsb,
 });
 
 /** What the open logs dialog streams from; one or the other, never both. */
@@ -42,6 +45,7 @@ export class ESPHomeWebNrfCard extends LitElement {
 
   @state() private _installOpen = false;
   @state() private _updateOpen = false;
+  @state() private _debuggerOpen = false;
   @state() private _logs?: LogsSource;
   // A chooser is up; a second click must not open another beside it. A
   // session still set (the dialog open, or hiding with its after-hide yet to
@@ -78,6 +82,24 @@ export class ESPHomeWebNrfCard extends LitElement {
     this._logs = undefined;
   }
 
+  // Boards with an on-board CMSIS-DAP debugger (XIAO nRF54LM20A), over WebUSB.
+  private _renderDebuggerButton() {
+    if (!isWebUsbSupported()) return nothing;
+    return html`
+      <button
+        id="btn-install-debugger"
+        class="action-btn action-btn--ghost action-btn--tile"
+        aria-label=${this._localize("web.nrf.debugger_title")}
+        @click=${() => (this._debuggerOpen = true)}
+      >
+        <wa-icon library="mdi" name="usb"></wa-icon>
+      </button>
+      <wa-tooltip for="btn-install-debugger"
+        >${this._localize("web.nrf.debugger_title")}</wa-tooltip
+      >
+    `;
+  }
+
   protected render() {
     const logs = this._logs;
     return html`
@@ -104,6 +126,7 @@ export class ESPHomeWebNrfCard extends LitElement {
             <wa-icon library="mdi" name="update"></wa-icon>
           </button>
           <wa-tooltip for="btn-update">${this._localize("web.nrf.update")}</wa-tooltip>
+          ${this._renderDebuggerButton()}
           <button
             id="btn-logs-usb"
             class="action-btn action-btn--ghost action-btn--tile"
@@ -132,6 +155,10 @@ export class ESPHomeWebNrfCard extends LitElement {
         ?open=${this._installOpen}
         @after-hide=${() => (this._installOpen = false)}
       ></esphome-web-install-nrf-dialog>
+      <esphome-web-install-nrf-debugger-dialog
+        ?open=${this._debuggerOpen}
+        @after-hide=${() => (this._debuggerOpen = false)}
+      ></esphome-web-install-nrf-debugger-dialog>
       <esphome-web-update-nrf-dialog
         ?open=${this._updateOpen}
         @after-hide=${() => (this._updateOpen = false)}

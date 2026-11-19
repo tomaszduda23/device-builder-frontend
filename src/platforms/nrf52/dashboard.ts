@@ -1,6 +1,7 @@
 /**
  * The Device Builder's nRF52 support: Nordic legacy DFU over the bootloader's
- * CDC, MCUboot updates over Bluetooth and serial, and logs.
+ * CDC, a write through an on-board CMSIS-DAP probe (nRF54L), MCUboot updates
+ * over Bluetooth and serial, and logs.
  */
 import type { PlatformSupport } from "../platform-support.js";
 import { pickBleNusDevice } from "./ble-nus-picker.js";
@@ -10,6 +11,7 @@ import {
   isWebBluetoothSupported,
   streamBleNus,
 } from "./ble-nus-stream.js";
+import { nrfCmsisDapInstall } from "./cmsis-dap/install.js";
 import { nrfDfuInstall } from "./dfu-install.js";
 import { isNrfPlatform } from "./nrf-platform.js";
 import { nrfOpenDfuInstall } from "./open-dfu-install.js";
@@ -22,7 +24,13 @@ export * from "./open-dfu-install.js";
 export const nrf52Platform: PlatformSupport = {
   id: "nrf52",
   matches: isNrfPlatform,
-  installs: [nrfDfuInstall, nrfOpenDfuInstall, nrfSmpBleInstall, nrfSmpSerialInstall],
+  installs: [
+    nrfDfuInstall,
+    nrfOpenDfuInstall,
+    nrfCmsisDapInstall,
+    nrfSmpBleInstall,
+    nrfSmpSerialInstall,
+  ],
   logs: {
     serial: NRF52_SERIAL_LOGS,
     ble: {

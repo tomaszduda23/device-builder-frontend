@@ -25,6 +25,10 @@ vi.mock(
   "../../../../src/web/platforms/nrf52/esphome-web-update-nrf-dialog.js",
   () => ({})
 );
+vi.mock(
+  "../../../../src/web/platforms/nrf52/esphome-web-install-nrf-debugger-dialog.js",
+  () => ({})
+);
 vi.mock("../../../../src/web/dashboard/esphome-web-card.js", () => ({}));
 vi.mock("../../../../src/util/register-icons.js", () => ({ registerMdiIcons: vi.fn() }));
 vi.mock("sonner-js", () => ({ default: { error: mocks.toastError } }));
@@ -72,6 +76,30 @@ describe("esphome-web-nrf-card", () => {
     dialog().dispatchEvent(new CustomEvent("after-hide"));
     await el.updateComplete;
     expect(dialog().hasAttribute("open")).toBe(false);
+  });
+
+  it("offers the on-board debugger install only where WebUSB is", async () => {
+    expect((await mount()).shadowRoot!.querySelector("#btn-install-debugger")).toBeNull();
+    document.body.innerHTML = "";
+
+    vi.stubGlobal("navigator", { ...navigator, usb: {} });
+    try {
+      const el = await mount();
+      expectTooltipsAnchored(el, 4);
+      const dialog = () =>
+        el.shadowRoot!.querySelector(
+          "esphome-web-install-nrf-debugger-dialog"
+        ) as HTMLElement;
+      expect(dialog().hasAttribute("open")).toBe(false);
+      el.shadowRoot!.querySelector<HTMLElement>("#btn-install-debugger")!.click();
+      await el.updateComplete;
+      expect(dialog().hasAttribute("open")).toBe(true);
+      dialog().dispatchEvent(new CustomEvent("after-hide"));
+      await el.updateComplete;
+      expect(dialog().hasAttribute("open")).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("opens the logs dialog on the picked, opened CDC port", async () => {

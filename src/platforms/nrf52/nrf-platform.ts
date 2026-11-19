@@ -45,6 +45,8 @@ const NRF52_USB_IDS = new Set([
   0x239a_8071, 0x239a_0071, 0x239a_8045, 0x239a_0045, 0x239a_810d, 0x239a_010d,
   // Seeed: XIAO nRF52840 and XIAO nRF52840 Sense.
   0x2886_8044, 0x2886_0044, 0x2886_8045, 0x2886_0045,
+  // Seeed XIAO nRF54LM20A: its on-board probe's bridge to the console UART.
+  0x2886_0068,
 ]);
 
 /**

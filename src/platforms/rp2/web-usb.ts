@@ -7,27 +7,14 @@ import { pickerFailure } from "../../util/picker-activation.js";
 import { isPortPickerCancel } from "../../util/web-serial.js";
 import type { PicoChip } from "./pico-uf2.js";
 
-/** Chromium only; Firefox has no WebUSB. */
-export const isWebUsbSupported = (): boolean => "usb" in navigator;
+export {
+  isUsbAccessDenied,
+  isUsbDeviceLost,
+  isWebUsbSupported,
+} from "../../util/web-usb.js";
 
 /** The PICOBOOT engine, kept in its own chunk. */
 export const loadPicoboot = () => import("./rp2-picoboot.js");
-
-/** The device dropped off the bus, or a transfer hit a device that already had. */
-export function isUsbDeviceLost(err: unknown): boolean {
-  return (
-    err instanceof DOMException &&
-    (err.name === "NetworkError" || err.name === "InvalidStateError")
-  );
-}
-
-/** The OS refused the open (Linux without a udev rule, or another driver holds it). */
-export function isUsbAccessDenied(err: unknown): boolean {
-  return (
-    err instanceof DOMException &&
-    (err.name === "SecurityError" || /access denied|permission/i.test(err.message))
-  );
-}
 
 export const RASPBERRY_PI_USB_VID = 0x2e8a;
 const RP2040_BOOTSEL_PID = 0x0003;

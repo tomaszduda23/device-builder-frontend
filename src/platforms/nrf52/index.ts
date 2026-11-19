@@ -1,11 +1,16 @@
 /**
  * nRF52 API shared by the Device Builder and web.esphome.io. The DFU and
  * MCUboot engines stay out of the main chunk: only their types are
- * re-exported, and ``loadDfuEngine`` / ``loadSmpEngine`` load them on demand.
+ * re-exported, and ``loadDfuEngine`` / ``loadSmpEngine`` load them on demand,
+ * as ``loadCmsisDapEngine`` does the CMSIS-DAP one.
  */
 export * from "./ble-nus-picker.js";
 export * from "./ble-nus-stream.js";
 export * from "./ble-probe-controller.js";
+export * from "./cmsis-dap/chips.js";
+export * from "./cmsis-dap/flash.js";
+export * from "./cmsis-dap/image.js";
+export * from "./cmsis-dap/probe.js";
 export * from "./manual-bootloader-hint.js";
 export type * from "./nrf-dfu.js";
 export type * from "./nrf-secure-dfu.js";
