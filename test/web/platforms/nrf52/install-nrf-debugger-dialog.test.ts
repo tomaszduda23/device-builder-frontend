@@ -65,7 +65,7 @@ describe("esphome-web-install-nrf-debugger-dialog", () => {
     expect(disabled(el)).toBe(false);
     expect(el.shadowRoot!.textContent).toContain("part0.hex, part1.hex");
 
-    mocks.flashCmsisDap.mockImplementation(async (_chip, _segments, hooks) => {
+    mocks.flashCmsisDap.mockImplementation(async (_segments, hooks) => {
       hooks.onDeviceOpened();
       hooks.onProgress(50);
       return true;
@@ -73,8 +73,7 @@ describe("esphome-web-install-nrf-debugger-dialog", () => {
     installButton(el).click();
     await settle(el);
 
-    const [chip, segments] = mocks.flashCmsisDap.mock.calls[0];
-    expect(chip.name).toBe("nRF54LM20A");
+    const [segments] = mocks.flashCmsisDap.mock.calls[0];
     expect(segments.map((s: { address: number }) => s.address)).toEqual([0, 0x80]);
     expect((el as any)._state).toBe("success");
   });

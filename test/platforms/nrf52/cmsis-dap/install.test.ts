@@ -38,7 +38,6 @@ const device = (over: Partial<ConfiguredDevice> = {}) =>
     configuration: "xiao.yaml",
     name: "xiao",
     target_platform: "nrf52",
-    board_id: "xiao_nrf54lm20a",
     mcu: null,
     bootloader: "mcuboot",
     loaded_platforms: [],
@@ -88,7 +87,7 @@ describe("cmsisDapHexFiles", () => {
 });
 
 describe("offering the CMSIS-DAP install", () => {
-  it("is offered to a XIAO nRF54LM20A built for MCUboot, ahead of everything else", () => {
+  it("is offered to any nRF board built for MCUboot, ahead of everything else", () => {
     const d = device();
     expect(installsFor(d)).toContain(nrfCmsisDapInstall);
     expect(installOf(platformFor(d.target_platform), d)).toBe(nrfCmsisDapInstall);
@@ -100,13 +99,8 @@ describe("offering the CMSIS-DAP install", () => {
     );
   });
 
-  it("is not offered to another board or one the backend could not name", () => {
-    for (const board_id of ["", "xiao_ble", "nrf54lm20dk"]) {
-      expect(installsFor(device({ board_id }))).not.toContain(nrfCmsisDapInstall);
-    }
-    expect(
-      installOf(platformFor("nrf52"), { mcu: null, bootloader: "mcuboot" })
-    ).toBeUndefined();
+  it("is not offered where the bootloader is unknown", () => {
+    expect(installsFor(device({ bootloader: null }))).not.toContain(nrfCmsisDapInstall);
   });
 });
 
@@ -125,7 +119,7 @@ describe("CMSIS-DAP install", () => {
     );
     expect(host._step).toBe("nrf-cmsis-dap-ready");
     expect(nrfCmsisDapInstall.image.get(asHost(host))).toMatchObject({
-      chip: { name: "nRF54LM20A" },
+      segments: [{ address: 0 }],
     });
   });
 
@@ -136,17 +130,10 @@ describe("CMSIS-DAP install", () => {
     expect(host._statusMessage).toBe("firmware.cmsis_dap_no_hex");
   });
 
-  it("fails a file that is not Intel HEX, or that does not fit the chip", async () => {
+  it("fails a file that is not Intel HEX", async () => {
     const host = makeHost(device(), ["zephyr/zephyr.hex"], "not hex");
     await nrfCmsisDapInstall.start(asHost(host));
     expect(host._statusMessage).toBe("firmware.cmsis_dap_bad_image");
-
-    // 4 bytes at 0x01FD0000: above the RRAM, below the UICR.
-    const outside = ":0200000401FDFC\n:0400000001020304F2\n:00000001FF\n";
-    const host2 = makeHost(device(), ["zephyr/zephyr.hex"], outside);
-    await nrfCmsisDapInstall.start(asHost(host2));
-    expect(host2._statusMessage).toBe("firmware.cmsis_dap_bad_image");
-    expect(host2._errorMessage).toContain("outside");
   });
 
   it("fails a download that did not arrive", async () => {
@@ -160,7 +147,7 @@ describe("CMSIS-DAP install", () => {
   it("writes the image through the probe and reports progress", async () => {
     const host = makeHost();
     await nrfCmsisDapInstall.start(asHost(host));
-    mocks.flashCmsisDap.mockImplementation(async (_chip, _segments, hooks) => {
+    mocks.flashCmsisDap.mockImplementation(async (_segments, hooks) => {
       hooks.onDeviceOpened?.();
       hooks.onLog?.("Halted the nRF54LM20A");
       hooks.onProgress(60);
@@ -171,7 +158,6 @@ describe("CMSIS-DAP install", () => {
 
     const image = nrfCmsisDapInstall.image.get(asHost(host)) as CmsisDapImage;
     expect(mocks.flashCmsisDap).toHaveBeenCalledWith(
-      image.chip,
       image.segments,
       expect.objectContaining({ signal: expect.any(AbortSignal) })
     );

@@ -1,8 +1,9 @@
 /**
- * The Device Builder's install through a board's on-board CMSIS-DAP probe
- * (the Seeed XIAO nRF54LM20A): compile, download the hex images ESPHome's
+ * The Device Builder's install through a CMSIS-DAP debugger, such as the one
+ * on the Seeed XIAO nRF54LM20A: compile, download the hex images ESPHome's
  * own ``upload_using_cmsis_dap`` writes, then one user-gesture step that
- * picks the probe and writes them. Works whatever firmware the chip runs.
+ * picks the debugger and writes them into whichever nRF54L it finds behind
+ * it. Works whatever firmware the chip runs.
  */
 import type { ConfiguredDevice } from "../../../api/types/devices.js";
 import type { FirmwareBinary } from "../../../api/types/firmware-jobs.js";
@@ -25,7 +26,6 @@ import {
 } from "../../platform-support.js";
 import { cmsisDapFailureCopy, flashCmsisDap } from "./flash.js";
 import { type CmsisDapImage, parseCmsisDapImage } from "./image.js";
-import { CMSIS_DAP_BOARDS, CMSIS_DAP_PROBES, cmsisDapBoardOf } from "./probe.js";
 
 declare module "../../platform-support.js" {
   interface BrowserFlasherSteps {
@@ -67,8 +67,7 @@ function showReady(host: ESPHomeFirmwareInstallDialog): void {
 /** Compile, download and parse the hex images, then show the ready step. */
 async function startCmsisDapInstall(host: ESPHomeFirmwareInstallDialog): Promise<void> {
   const device = host._device;
-  const chip = cmsisDapBoardOf(device?.board_id)?.chip;
-  if (!device || !chip) return;
+  if (!device) return;
   const stale = () => host._device !== device;
   if (!(await compileOrFail(host, device.configuration)) || stale()) return;
 
@@ -94,7 +93,7 @@ async function startCmsisDapInstall(host: ESPHomeFirmwareInstallDialog): Promise
     return;
   }
   if (stale()) return;
-  const parsed = parseCmsisDapImage(chip, texts);
+  const parsed = parseCmsisDapImage(texts);
   if ("key" in parsed) {
     host._fail(host._localize(parsed.key), parsed.detail);
     return;
@@ -114,7 +113,7 @@ async function flashOverProbe(host: ESPHomeFirmwareInstallDialog): Promise<void>
   host._flashAbort = abort;
   let flashed: boolean;
   try {
-    flashed = await flashCmsisDap(image.chip, image.segments, {
+    flashed = await flashCmsisDap(image.segments, {
       signal: abort.signal,
       cancelled: () => !stillCurrent(),
       onLog: installLog(host, stillCurrent),
@@ -142,15 +141,13 @@ async function flashOverProbe(host: ESPHomeFirmwareInstallDialog): Promise<void>
   host._step = "done";
 }
 
-/** The probe's serial bridge carries the console; pick it for the logs. */
-async function pickProbeSerialPort(localize: LocalizeFunc): Promise<SerialPort | null> {
+/**
+ * The console is on a serial port the flash did not open (an on-board
+ * debugger's bridge, or the chip's own USB); pick it for the logs.
+ */
+async function pickLogsSerialPort(localize: LocalizeFunc): Promise<SerialPort | null> {
   try {
-    return await requestSerialPort({
-      filters: CMSIS_DAP_PROBES.map((p) => ({
-        usbVendorId: p.vendorId,
-        usbProductId: p.productId,
-      })),
-    });
+    return await requestSerialPort();
   } catch (err) {
     notifyError(
       openFailureMessage(err, localize, "dashboard.logs_web_serial_open_failed")
@@ -162,9 +159,8 @@ async function pickProbeSerialPort(localize: LocalizeFunc): Promise<SerialPort |
 export const nrfCmsisDapInstall: BrowserInstall<"nrf-cmsis-dap"> = {
   id: "nrf-cmsis-dap",
   methodKey: "nrf_cmsis_dap",
-  // Only boards with the debugger on board; an unknown board is not offered.
-  boards: Object.keys(CMSIS_DAP_BOARDS),
-  // It writes MCUboot itself; ESPHome takes the probe for these builds only.
+  // It writes MCUboot itself; ESPHome takes a debugger for these builds only.
+  // The chip is found behind the debugger, so any nRF board is offered.
   bootloaders: ["mcuboot"],
   available: isWebUsbSupported,
   icon: "usb",
@@ -172,7 +168,7 @@ export const nrfCmsisDapInstall: BrowserInstall<"nrf-cmsis-dap"> = {
   image: cmsisDapImage,
   start: startCmsisDapInstall,
   showFirstStep: showReady,
-  pickLogsPort: pickProbeSerialPort,
+  pickLogsPort: pickLogsSerialPort,
   steps: {
     "nrf-cmsis-dap-ready": {
       detailKey: "firmware.cmsis_dap_ready_desc",

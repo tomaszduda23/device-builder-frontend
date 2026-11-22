@@ -1,6 +1,5 @@
 /** The CMSIS-DAP flash engine, loaded on demand (``loadCmsisDapEngine``). */
 import type { HexSegment } from "../../../util/intel-hex.js";
-import type { Nrf54lChip } from "./chips.js";
 import { Dap, UsbDapTransport } from "./dap.js";
 import {
   type Nrf54lFlashHooks,
@@ -21,13 +20,12 @@ export interface CmsisDapFlashHooks extends Nrf54lFlashHooks {
 }
 
 /**
- * Open the probe, write ``segments`` into the chip behind it and start the
+ * Open the probe, find which chip is behind it, write ``segments`` into it and start the
  * new firmware. False when the caller moved on before the write; the probe
  * is released either way.
  */
 export async function flashOverCmsisDap(
   usb: USBDevice,
-  chip: Nrf54lChip,
   segments: readonly HexSegment[],
   hooks: CmsisDapFlashHooks
 ): Promise<boolean> {
@@ -38,7 +36,7 @@ export async function flashOverCmsisDap(
     const packet = await dap.readPacketSize();
     log(`Opened the CMSIS-DAP probe (${packet}-byte packets)`);
     const target = new SwdTarget(dap);
-    await prepareNrf54l(target, chip, log);
+    const chip = await prepareNrf54l(target, log);
     if (hooks.cancelled?.()) return false;
     hooks.onDeviceOpened?.();
     await writeNrf54l(target, chip, segments, hooks);

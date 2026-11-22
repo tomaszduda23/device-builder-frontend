@@ -60,7 +60,10 @@ const CHIPS: Record<string, { takes: string[]; refuses?: string }> = {
 // The bootloaders of each platform whose boards ship more than one, with
 // one no browser flasher speaks to.
 const BOOTLOADERS: Record<string, { takes: string[]; refuses: string }> = {
-  nrf52: { takes: ["adafruit", "adafruit_nrf52_sd140_v7", "nrf"], refuses: "mcuboot" },
+  nrf52: {
+    takes: ["adafruit", "adafruit_nrf52_sd140_v7", "nrf", "mcuboot"],
+    refuses: "unknown_bootloader",
+  },
 };
 
 /** What ``installOf`` matches: a chip and a bootloader, the platform's first where it has any. */
@@ -169,9 +172,11 @@ describe("PLATFORMS", () => {
     expect(nrf("adafruit")).toEqual(["nrf-dfu"]);
     expect(nrf("adafruit_nrf52_sd140_v6")).toEqual(["nrf-dfu"]);
     expect(nrf("nrf")).toEqual(["nrf-open-dfu"]);
-    // MCUboot takes no DFU; its updaters come with the firmware.
-    expect(nrf("mcuboot")).toEqual([]);
+    // MCUboot takes no DFU: a CMSIS-DAP debugger writes it whole, and its
+    // updaters come with the firmware.
+    expect(nrf("mcuboot")).toEqual(["nrf-cmsis-dap"]);
     expect(nrf("mcuboot", ["ota.zephyr_mcumgr"])).toEqual([
+      "nrf-cmsis-dap",
       "nrf-smp-ble",
       "nrf-smp-serial",
     ]);

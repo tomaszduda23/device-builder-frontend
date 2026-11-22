@@ -9,7 +9,6 @@ import {
   cmsisDapFailureCopy,
   type CmsisDapImage,
   flashCmsisDap,
-  NRF54L_CHIPS,
   parseCmsisDapImage,
 } from "../../../platforms/nrf52/index.js";
 import { espHomeStyles } from "../../../styles/shared.js";
@@ -32,9 +31,6 @@ import { Preparation, type Prepared } from "../../install/preparation.js";
 import "@home-assistant/webawesome/dist/components/button/button.js";
 
 type InstallState = "idle" | "connecting" | "flashing" | "success" | "error";
-
-// The one board with a known on-board probe; the engine checks the chip it finds.
-const CHIP = NRF54L_CHIPS.nrf54lm20a;
 
 /**
  * Install through a board's on-board CMSIS-DAP debugger (the Seeed XIAO
@@ -76,7 +72,7 @@ export class ESPHomeWebInstallNrfDebuggerDialog extends LitElement {
 
   private async _parse(files: File[]): Promise<Prepared<CmsisDapImage, FilePickerError>> {
     const texts = await Promise.all(files.map((f) => f.text()));
-    const parsed = parseCmsisDapImage(CHIP, texts);
+    const parsed = parseCmsisDapImage(texts);
     if ("segments" in parsed) return { value: parsed };
     return {
       failure: { title: this._localize(parsed.key), detail: parsed.detail },
@@ -139,7 +135,7 @@ export class ESPHomeWebInstallNrfDebuggerDialog extends LitElement {
     const current = () => this._abort === abort;
     try {
       // Nothing is awaited before the chooser: it needs the click's activation.
-      const flashed = await flashCmsisDap(image.chip, image.segments, {
+      const flashed = await flashCmsisDap(image.segments, {
         signal: abort.signal,
         cancelled: () => !current(),
         onLog: (line) => {

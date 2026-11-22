@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("../../../../src/util/sleep.js", () => ({ sleep: () => Promise.resolve() }));
 
 import { identityLocalize } from "../../../_dom.js";
-import { NRF54L_CHIPS } from "../../../../src/platforms/nrf52/cmsis-dap/chips.js";
 import {
   cmsisDapFailureCopy,
   CmsisDapFlashError,
@@ -12,7 +11,6 @@ import {
 } from "../../../../src/platforms/nrf52/cmsis-dap/flash.js";
 import { FakeDapTarget } from "./_fake-dap-target.js";
 
-const CHIP = NRF54L_CHIPS.nrf54lm20a;
 const SEGMENTS = [{ address: 0, data: new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]) }];
 
 interface FakeUsbOptions {
@@ -86,7 +84,7 @@ describe("flashCmsisDap", () => {
     const opened = vi.fn();
     const lines: string[] = [];
 
-    const flashed = await flashCmsisDap(CHIP, SEGMENTS, {
+    const flashed = await flashCmsisDap(SEGMENTS, {
       onProgress: () => {},
       onLog: (l) => lines.push(l),
       onDeviceOpened: opened,
@@ -94,7 +92,7 @@ describe("flashCmsisDap", () => {
 
     expect(flashed).toBe(true);
     expect(requestDevice).toHaveBeenCalledWith({
-      filters: [{ vendorId: 0x2886, productId: 0x0068 }],
+      filters: [{ classCode: 0xff }],
     });
     expect(usb.claimInterface).toHaveBeenCalledWith(3);
     expect(opened).toHaveBeenCalledOnce();
@@ -106,7 +104,7 @@ describe("flashCmsisDap", () => {
 
   it("is false, without opening anything, when the chooser is dismissed", async () => {
     requestDevice.mockRejectedValue(new DOMException("none", "NotFoundError"));
-    expect(await flashCmsisDap(CHIP, SEGMENTS, { onProgress: () => {} })).toBe(false);
+    expect(await flashCmsisDap(SEGMENTS, { onProgress: () => {} })).toBe(false);
   });
 
   it("is false, with the probe released, when the caller moved on before the write", async () => {
@@ -114,7 +112,7 @@ describe("flashCmsisDap", () => {
     const usb = fakeUsb(target);
     requestDevice.mockResolvedValue(usb);
     let checks = 0;
-    const flashed = await flashCmsisDap(CHIP, SEGMENTS, {
+    const flashed = await flashCmsisDap(SEGMENTS, {
       onProgress: () => {},
       cancelled: () => ++checks > 1,
     });
@@ -137,7 +135,7 @@ describe("flashCmsisDap", () => {
     tweak?.(target);
     const usb = fakeUsb(target, opts);
     requestDevice.mockResolvedValue(usb);
-    const err = await flashCmsisDap(CHIP, SEGMENTS, { onProgress: () => {} }).catch(
+    const err = await flashCmsisDap(SEGMENTS, { onProgress: () => {} }).catch(
       (e: unknown) => e
     );
     expect(err).toBeInstanceOf(CmsisDapFlashError);

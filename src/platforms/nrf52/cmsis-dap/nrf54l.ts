@@ -8,7 +8,7 @@
 import { formatAddress } from "../../../util/flash-log.js";
 import { hexImageSize, type HexSegment } from "../../../util/intel-hex.js";
 import { sleep } from "../../../util/sleep.js";
-import { type Nrf54lChip, outOfRange } from "./chips.js";
+import { type Nrf54lChip, nrf54lChipByPart, outOfRange } from "./chips.js";
 import { AP_IDR, type SwdTarget } from "./swd.js";
 
 const AHB_AP = 0;
@@ -57,7 +57,7 @@ export interface Nrf54lFlashHooks {
   signal?: AbortSignal;
 }
 
-/** Not an nRF54L, or another chip of it than the image is for. */
+/** Not an nRF54L, or one of the family the flasher does not know. */
 export class WrongChipError extends Error {
   constructor(readonly found: string) {
     super(`The probe is connected to ${found}`);
@@ -193,29 +193,33 @@ async function stopWatchdog(target: SwdTarget): Promise<void> {
   await target.write32(AHB_AP, WDT31 + WDT_TSEN, 0);
 }
 
-async function checkPart(target: SwdTarget, chip: Nrf54lChip): Promise<void> {
+/** Which chip this is, from its part code. */
+async function detectChip(target: SwdTarget): Promise<Nrf54lChip> {
   const part = await target.read32(AHB_AP, FICR_INFO_PART);
-  if (!chip.parts.includes(part)) {
-    throw new WrongChipError(
-      `a chip with part code ${formatAddress(part)}, not an ${chip.name}`
-    );
+  const chip = nrf54lChipByPart(part);
+  if (!chip) {
+    throw new WrongChipError(`an nRF54L with part code ${formatAddress(part)}`);
   }
+  return chip;
 }
 
-/** Connect, unlock and halt: the chip is ready for its RRAM to be written. */
+/**
+ * Connect, unlock, halt and tell the chip apart: it is ready for its RRAM to
+ * be written. Resolves to the chip found.
+ */
 export async function prepareNrf54l(
   target: SwdTarget,
-  chip: Nrf54lChip,
   log: (line: string) => void
-): Promise<void> {
+): Promise<Nrf54lChip> {
   const idr = await target.connect();
   log(`Debug port ${formatAddress(idr)} is up`);
   await checkCtrlAp(target);
   if (!(await isUnlocked(target))) await unlock(target, log);
   await resetAndHalt(target);
-  await checkPart(target, chip);
+  const chip = await detectChip(target);
   log(`Halted the ${chip.name}`);
   await stopWatchdog(target);
+  return chip;
 }
 
 /** Write ``segments`` into RRAM, read them back and start the new firmware. */

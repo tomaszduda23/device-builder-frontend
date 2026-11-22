@@ -16,7 +16,7 @@ import { SwdTarget } from "../../../../src/platforms/nrf52/cmsis-dap/swd.js";
 import type { HexSegment } from "../../../../src/util/intel-hex.js";
 import { FakeDapTarget } from "./_fake-dap-target.js";
 
-const CHIP = NRF54L_CHIPS.nrf54lm20a;
+const CHIP = NRF54L_CHIPS[0];
 
 const seg = (address: number, bytes: number[]): HexSegment => ({
   address,
@@ -40,7 +40,7 @@ describe("nRF54LM20A through CMSIS-DAP", () => {
     const uicr = [0x11, 0x22, 0x33, 0x44];
     const progress: number[] = [];
 
-    await prepareNrf54l(target, CHIP, () => {});
+    await prepareNrf54l(target, () => {});
     await writeNrf54l(target, CHIP, [seg(0x1000, app), seg(0xffd000, uicr)], {
       onProgress: (p) => progress.push(p),
     });
@@ -58,7 +58,7 @@ describe("nRF54LM20A through CMSIS-DAP", () => {
     const { fake, target } = await setUp();
     fake.mem.set(0x2000, 0xaabbccdd);
     fake.mem.set(0x2004, 0x11223344);
-    await prepareNrf54l(target, CHIP, () => {});
+    await prepareNrf54l(target, () => {});
     await writeNrf54l(target, CHIP, [seg(0x2001, [1, 2, 3, 4])], {
       onProgress: () => {},
     });
@@ -70,7 +70,7 @@ describe("nRF54LM20A through CMSIS-DAP", () => {
     fake.packetSize = 512;
     const { target } = await setUp(fake);
     expect(target.dap.blockWords).toBe(126);
-    await prepareNrf54l(target, CHIP, () => {});
+    await prepareNrf54l(target, () => {});
     const app = image(4100, 3);
     await writeNrf54l(target, CHIP, [seg(0, app)], { onProgress: () => {} });
     expect(fake.bytes(0, app.length)).toEqual(app);
@@ -82,7 +82,7 @@ describe("nRF54LM20A through CMSIS-DAP", () => {
     fake.mem.set(0x8000, 0x12345678);
     const { target } = await setUp(fake);
     const lines: string[] = [];
-    await prepareNrf54l(target, CHIP, (l) => lines.push(l));
+    await prepareNrf54l(target, (l) => lines.push(l));
     expect(fake.erased).toBe(true);
     expect(fake.resets).toBe(1);
     expect(fake.mem.has(0x8000)).toBe(false);
@@ -93,21 +93,28 @@ describe("nRF54LM20A through CMSIS-DAP", () => {
     const fake = new FakeDapTarget();
     fake.ctrlApIdr = 0x02880000;
     const { target } = await setUp(fake);
-    await expect(prepareNrf54l(target, CHIP, () => {})).rejects.toBeInstanceOf(
-      WrongChipError
-    );
+    await expect(prepareNrf54l(target, () => {})).rejects.toBeInstanceOf(WrongChipError);
   });
 
-  it("refuses another nRF54L than the image is for", async () => {
+  it("tells the chip apart by its part code", async () => {
     const fake = new FakeDapTarget();
     fake.part = 0x00054b15;
     const { target } = await setUp(fake);
-    await expect(prepareNrf54l(target, CHIP, () => {})).rejects.toThrow(/part code/);
+    const lines: string[] = [];
+    expect((await prepareNrf54l(target, (l) => lines.push(l))).name).toBe("nRF54L15");
+    expect(lines).toContain("Halted the nRF54L15");
+  });
+
+  it("refuses an nRF54L it does not know", async () => {
+    const fake = new FakeDapTarget();
+    fake.part = 0x00054b10;
+    const { target } = await setUp(fake);
+    await expect(prepareNrf54l(target, () => {})).rejects.toThrow(/part code 0x54B10/);
   });
 
   it("refuses an image outside RRAM and UICR before writing", async () => {
     const { fake, target } = await setUp();
-    await prepareNrf54l(target, CHIP, () => {});
+    await prepareNrf54l(target, () => {});
     await expect(
       writeNrf54l(target, CHIP, [seg(0x1fcffe, [1, 2, 3, 4])], { onProgress: () => {} })
     ).rejects.toBeInstanceOf(ImageOutOfRangeError);
@@ -118,7 +125,7 @@ describe("nRF54LM20A through CMSIS-DAP", () => {
     const fake = new FakeDapTarget();
     fake.failRramWriteAt = 20;
     const { target } = await setUp(fake);
-    await prepareNrf54l(target, CHIP, () => {});
+    await prepareNrf54l(target, () => {});
     await expect(
       writeNrf54l(target, CHIP, [seg(0, image(400))], { onProgress: () => {} })
     ).rejects.toBeInstanceOf(DapTransferError);
@@ -126,7 +133,7 @@ describe("nRF54LM20A through CMSIS-DAP", () => {
 
   it("stops between packets once aborted", async () => {
     const { target } = await setUp();
-    await prepareNrf54l(target, CHIP, () => {});
+    await prepareNrf54l(target, () => {});
     const abort = new AbortController();
     const reason = new Error("stopped");
     await expect(

@@ -9,7 +9,6 @@ import { formatUsbId } from "../../../util/flash-log.js";
 import type { HexSegment } from "../../../util/intel-hex.js";
 import { connectFailureDetail } from "../../../util/serial-open-error.js";
 import { isUsbAccessDenied, isUsbDeviceLost } from "../../../util/web-usb.js";
-import type { Nrf54lChip } from "./chips.js";
 import type { CmsisDapFlashHooks } from "./engine.js";
 import { loadCmsisDapEngine, requestCmsisDapProbe } from "./probe.js";
 
@@ -46,12 +45,11 @@ function failureKind(engine: Engine, err: unknown, opened: boolean): CmsisDapFai
 }
 
 /**
- * Pick the probe, write ``segments`` into ``chip`` behind it and start the
+ * Pick the debugger, write ``segments`` into the chip found behind it and start the
  * firmware. False when the chooser was dismissed or the caller moved on.
  * Throws ``CmsisDapFlashError``.
  */
 export async function flashCmsisDap(
-  chip: Nrf54lChip,
   segments: readonly HexSegment[],
   hooks: CmsisDapFlashHooks
 ): Promise<boolean> {
@@ -69,7 +67,7 @@ export async function flashCmsisDap(
   hooks.onLog?.(`Picked the probe (${formatUsbId(usb.vendorId, usb.productId)})`);
   let opened = false;
   try {
-    return await engine.flashOverCmsisDap(usb, chip, segments, {
+    return await engine.flashOverCmsisDap(usb, segments, {
       ...hooks,
       cancelled,
       onDeviceOpened: () => {
