@@ -38,7 +38,8 @@ const device = (over: Partial<ConfiguredDevice> = {}) =>
     configuration: "xiao.yaml",
     name: "xiao",
     target_platform: "nrf52",
-    mcu: "nrf54lm20a",
+    board_id: "xiao_nrf54lm20a",
+    mcu: null,
     bootloader: "mcuboot",
     loaded_platforms: [],
     ...over,
@@ -87,7 +88,7 @@ describe("cmsisDapHexFiles", () => {
 });
 
 describe("offering the CMSIS-DAP install", () => {
-  it("is offered to an nRF54LM20A built for MCUboot, ahead of everything else", () => {
+  it("is offered to a XIAO nRF54LM20A built for MCUboot, ahead of everything else", () => {
     const d = device();
     expect(installsFor(d)).toContain(nrfCmsisDapInstall);
     expect(installOf(platformFor(d.target_platform), d)).toBe(nrfCmsisDapInstall);
@@ -99,12 +100,13 @@ describe("offering the CMSIS-DAP install", () => {
     );
   });
 
-  it("is not offered to an nRF52 or a chip the backend could not name", () => {
-    for (const mcu of [null, "nrf52840"]) {
-      expect(installsFor(device({ mcu, bootloader: "adafruit" }))).not.toContain(
-        nrfCmsisDapInstall
-      );
+  it("is not offered to another board or one the backend could not name", () => {
+    for (const board_id of ["", "xiao_ble", "nrf54lm20dk"]) {
+      expect(installsFor(device({ board_id }))).not.toContain(nrfCmsisDapInstall);
     }
+    expect(
+      installOf(platformFor("nrf52"), { mcu: null, bootloader: "mcuboot" })
+    ).toBeUndefined();
   });
 });
 

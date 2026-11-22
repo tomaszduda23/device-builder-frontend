@@ -1,4 +1,4 @@
-/** The nRF54L chips the CMSIS-DAP flasher writes, by the device's ``mcu``. */
+/** The nRF54L chips the CMSIS-DAP flasher writes. */
 import type { HexSegment } from "../../../util/intel-hex.js";
 
 /** One chip of the family: where its RRAM controller sits and how much RRAM it has. */
@@ -18,15 +18,6 @@ export const NRF54L_CHIPS = {
     rramSize: 0x1fd000,
   },
 } as const satisfies Record<string, Nrf54lChip>;
-
-export type Nrf54lMcu = keyof typeof NRF54L_CHIPS;
-
-/** The ``mcu`` values the flasher is offered for. */
-export const NRF54L_MCUS = Object.keys(NRF54L_CHIPS) as Nrf54lMcu[];
-
-export function nrf54lChipOf(mcu: string | null | undefined): Nrf54lChip | undefined {
-  return mcu && mcu in NRF54L_CHIPS ? NRF54L_CHIPS[mcu as Nrf54lMcu] : undefined;
-}
 
 export const UICR_BASE = 0x00ffd000;
 const UICR_SIZE = 0x1000;

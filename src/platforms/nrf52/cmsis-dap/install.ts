@@ -23,10 +23,9 @@ import {
   FLASH_ACTION_KEY,
   FlashImageSlot,
 } from "../../platform-support.js";
-import { NRF54L_MCUS, nrf54lChipOf } from "./chips.js";
 import { cmsisDapFailureCopy, flashCmsisDap } from "./flash.js";
 import { type CmsisDapImage, parseCmsisDapImage } from "./image.js";
-import { CMSIS_DAP_PROBES } from "./probe.js";
+import { CMSIS_DAP_BOARDS, CMSIS_DAP_PROBES, cmsisDapBoardOf } from "./probe.js";
 
 declare module "../../platform-support.js" {
   interface BrowserFlasherSteps {
@@ -68,7 +67,7 @@ function showReady(host: ESPHomeFirmwareInstallDialog): void {
 /** Compile, download and parse the hex images, then show the ready step. */
 async function startCmsisDapInstall(host: ESPHomeFirmwareInstallDialog): Promise<void> {
   const device = host._device;
-  const chip = nrf54lChipOf(device?.mcu);
+  const chip = cmsisDapBoardOf(device?.board_id)?.chip;
   if (!device || !chip) return;
   const stale = () => host._device !== device;
   if (!(await compileOrFail(host, device.configuration)) || stale()) return;
@@ -163,8 +162,8 @@ async function pickProbeSerialPort(localize: LocalizeFunc): Promise<SerialPort |
 export const nrfCmsisDapInstall: BrowserInstall<"nrf-cmsis-dap"> = {
   id: "nrf-cmsis-dap",
   methodKey: "nrf_cmsis_dap",
-  // The chips the flasher knows the RRAM of; an unknown chip is not offered.
-  chips: NRF54L_MCUS,
+  // Only boards with the debugger on board; an unknown board is not offered.
+  boards: Object.keys(CMSIS_DAP_BOARDS),
   // It writes MCUboot itself; ESPHome takes the probe for these builds only.
   bootloaders: ["mcuboot"],
   available: isWebUsbSupported,

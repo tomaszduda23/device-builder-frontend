@@ -88,6 +88,13 @@ export interface BrowserInstall<Id extends FlasherId> {
    */
   readonly bootloaders?: readonly string[];
   /**
+   * The boards this flasher writes, as the device's ``board_id``, for one
+   * that needs hardware only those boards carry (an on-board debugger). It
+   * is offered only to a device on one of them, so not to one whose board is
+   * unknown. Absent: any board of the platform.
+   */
+  readonly boards?: readonly string[];
+  /**
    * The ``domain.platform`` the device's last compile must have loaded
    * (``ota.zephyr_mcumgr``): an update over a service only that component
    * puts on the device. Absent: the flasher needs nothing from the firmware.

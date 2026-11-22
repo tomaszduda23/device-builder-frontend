@@ -94,12 +94,10 @@ describe("PLATFORMS", () => {
     const chips = CHIPS[id];
     const bootloaders = BOOTLOADERS[id];
     // Every flasher of a platform that is more than one chip names its
-    // chips (one that writes only some chips, like nRF52's CMSIS-DAP one,
-    // names them anywhere), and every chip flasher of one with several
-    // bootloaders its bootloaders (an updater goes through the firmware, not
-    // a bootloader).
+    // chips, and every chip flasher of one with several bootloaders its
+    // bootloaders (an updater goes through the firmware, not a bootloader).
     for (const each of platform.installs ?? []) {
-      if (chips) expect(each.chips).toBeDefined();
+      expect(each.chips !== undefined).toBe(chips !== undefined);
       if (!each.component) {
         expect(each.bootloaders !== undefined).toBe(bootloaders !== undefined);
       }

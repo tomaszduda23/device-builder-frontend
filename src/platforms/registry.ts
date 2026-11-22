@@ -46,8 +46,9 @@ export function serialLogsFor(
   return serialLogsOf(platformFor(targetPlatform));
 }
 
-/** What a flasher is matched against: the device's chip and its bootloader. */
-export type DeviceHardware = Pick<ConfiguredDevice, "mcu" | "bootloader">;
+/** What a flasher is matched against: the device's chip, its bootloader and its board. */
+export type DeviceHardware = Pick<ConfiguredDevice, "mcu" | "bootloader"> &
+  Partial<Pick<ConfiguredDevice, "board_id">>;
 
 const writesChip = (install: AnyBrowserInstall, mcu: string | null): boolean =>
   !install.chips || (mcu !== null && install.chips.includes(mcu));
@@ -59,8 +60,13 @@ const speaksBootloader = (
   !install.bootloaders ||
   (bootloader !== null && install.bootloaders.includes(bootloader));
 
+const onBoard = (install: AnyBrowserInstall, boardId: string | undefined): boolean =>
+  !install.boards || (!!boardId && install.boards.includes(boardId));
+
 const writesDevice = (install: AnyBrowserInstall, hardware: DeviceHardware): boolean =>
-  writesChip(install, hardware.mcu) && speaksBootloader(install, hardware.bootloader);
+  writesChip(install, hardware.mcu) &&
+  speaksBootloader(install, hardware.bootloader) &&
+  onBoard(install, hardware.board_id);
 
 /**
  * The flasher of ``platform`` that writes a device's chip, through its
